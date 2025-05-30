@@ -55,23 +55,44 @@ def log_request(user_id, username, query, response):
     except Exception as e:
         print("Ошибка при логировании в БД:", e)
 
+def get_wiki_image(title):
+    import requests
+
+    URL = "https://ru.wikipedia.org/w/api.php"
+    PARAMS = {
+        "action": "query",
+        "format": "json",
+        "prop": "pageimages",
+        "titles": title,
+        "pithumbsize": 500  # размер изображения
+    }
+
+    try:
+        response = requests.get(URL, params=PARAMS)
+        data = response.json()
+        pages = data["query"]["pages"]
+        for page_id in pages:
+            page = pages[page_id]
+            if "thumbnail" in page:
+                return page["thumbnail"]["source"]
+    except Exception as e:
+        print("Ошибка при получении изображения:", e)
+
+    return None
+
 # Обработка запроса
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
     try:
         summary = wikipedia.summary(query, sentences=3)
         page = wikipedia.page(query)
 
-        # Ограничение текста (макс 1000 символов)
         if len(summary) > 1000:
             summary = summary[:1000] + "..."
 
-        # Кнопка на статью
         keyboard = [[InlineKeyboardButton("📖 Читать в Википедии", url=page.url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        print(f"[LOG] Запрос от @{update.message.from_user.username}: {query}")
-
-        # Добавляем логирование :
+        # Логирование
         log_request(
             update.message.from_user.id,
             update.message.from_user.username,
@@ -79,7 +100,13 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query
             summary
         )
 
-        await update.message.reply_text(summary, reply_markup=reply_markup)
+        # Изображение
+        image_url = get_wiki_image(query)
+
+        if image_url:
+            await update.message.reply_photo(photo=image_url, caption=summary, reply_markup=reply_markup)
+        else:
+            await update.message.reply_text(summary, reply_markup=reply_markup)
 
     except wikipedia.exceptions.DisambiguationError as e:
         await update.message.reply_text(f"🔎 Слишком много значений. Уточни запрос. Например: {', '.join(e.options[:5])}")
