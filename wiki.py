@@ -80,11 +80,26 @@ def get_wiki_image(title):
 
     return None
 
+def clean_query(text):
+    text = text.lower()
+    # Убираем вводные слова
+    text = re.sub(r"^(что|кто|где|когда|зачем|почему) такое ", "", text)
+    text = re.sub(r"[^\w\sёЁ\-]", "", text)  # убираем лишние символы, если надо
+    return text.strip()
+
 # Обработка запроса
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
     try:
-        summary = wikipedia.summary(query, sentences=3)
-        page = wikipedia.page(query)
+        query = clean_query(query)
+        results = wikipedia.search(query)
+
+        if not results:
+            await update.message.reply_text("❌ Ничего не найдено.")
+            return
+
+        page_title = results[0]
+        summary = wikipedia.summary(page_title, sentences=3)
+        page = wikipedia.page(page_title)
 
         if len(summary) > 1000:
             summary = summary[:1000] + "..."
