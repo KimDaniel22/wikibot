@@ -5,4 +5,4 @@ services:
     plan: free
     branch: main
     buildCommand: ""
-    startCommand: "python main.py"
+    startCommand: "python wiki.py"
