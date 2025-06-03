@@ -1,0 +1,8 @@
+services:
+  - type: worker
+    name: my-telegram-bot
+    env: python
+    plan: free
+    branch: main
+    buildCommand: ""
+    startCommand: "python main.py"
