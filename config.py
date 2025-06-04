@@ -1,3 +1,4 @@
-BOT_TOKEN = "7585359871:AAGG9F2z0IsPdrw2OsFXn6RfKtGrXbRl-Zo"
-DATABASE_NAME = "wiki_bot.db"
-WIKI_LANGUAGE = "ru"
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+APP_URL = os.getenv("APP_URL")

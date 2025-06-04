@@ -1,3 +1,4 @@
-python-telegram-bot
+python-telegram-bot==20.0
 psycopg2-binary
 wikipedia
+flask
