@@ -1,1 +1,1 @@
-web: python wiki.py
+worker: python wiki.py

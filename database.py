@@ -1,10 +1,8 @@
 import sqlite3
-from datetime import datetime
-
 
 class Database:
     def __init__(self, db_name='wiki_bot.db'):
-        self.conn = sqlite3.connect(db_name)
+        self.conn = sqlite3.connect(db_name, check_same_thread=False)
         self.cursor = self.conn.cursor()
         self._create_tables()
 
@@ -39,7 +37,6 @@ class Database:
             FOREIGN KEY (request_id) REFERENCES search_requests (request_id)
         )
         ''')
-
         self.conn.commit()
 
     def add_user(self, user_id, username=None, first_name=None, last_name=None):
@@ -50,7 +47,6 @@ class Database:
         self.conn.commit()
 
     def log_search(self, user_id, query):
-        """Логирует поисковый запрос пользователя"""
         self.cursor.execute('''
         INSERT INTO search_requests (user_id, search_query)
         VALUES (?, ?)
@@ -59,7 +55,6 @@ class Database:
         return self.cursor.lastrowid
 
     def save_article(self, request_id, title, content, url=None):
-        """Сохраняет найденную статью"""
         self.cursor.execute('''
         INSERT INTO articles (request_id, title, content, url)
         VALUES (?, ?, ?, ?)
