@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 
+
 class Database:
     def __init__(self, db_name='wiki_bot.db'):
         self.conn = sqlite3.connect(db_name)
@@ -66,7 +67,6 @@ class Database:
         self.conn.commit()
 
     def get_user_history(self, user_id, limit=10):
-        """Возвращает историю поиска пользователя"""
         self.cursor.execute('''
         SELECT search_query, search_date 
         FROM search_requests 
@@ -77,7 +77,6 @@ class Database:
         return self.cursor.fetchall()
 
     def get_popular_searches(self, limit=10):
-        """Возвращает самые популярные запросы"""
         self.cursor.execute('''
         SELECT search_query, COUNT(*) as count 
         FROM search_requests 
@@ -88,9 +87,7 @@ class Database:
         return self.cursor.fetchall()
 
     def close(self):
-        """Закрывает соединение с базой данных"""
         self.conn.close()
 
     def __del__(self):
-        """Деструктор, автоматически закрывающий соединение"""
         self.close()

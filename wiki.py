@@ -4,10 +4,10 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-
 wikipedia.set_lang("ru")
 
 
+# --- Инициализация базы данных ---
 def init_db():
     conn = sqlite3.connect('wiki_bot.db')
     cursor = conn.cursor()
@@ -47,7 +47,7 @@ def init_db():
     conn.close()
 
 
-# Функции для работы с БД
+# --- Работа с базой данных ---
 def log_user(user_id, username=None, first_name=None, last_name=None):
     conn = sqlite3.connect('wiki_bot.db')
     cursor = conn.cursor()
@@ -83,7 +83,7 @@ def save_article(request_id, title, content, url=None):
     conn.close()
 
 
-# Обработчики команд
+# --- Обработчики команд и сообщений ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     log_user(user.id, user.username, user.first_name, user.last_name)
@@ -127,19 +127,21 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
     await handle_query(update, context, query)
 
-    def main():
-        init_db()
 
-        TOKEN = "7585359871:AAGG9F2z0IsPdrw2OsFXn6RfKtGrXbRl-Zo"
+# --- Основной запуск ---
+def main():
+    init_db()
 
-        app = ApplicationBuilder().token(TOKEN).build()
+    TOKEN = "7585359871:AAGG9F2z0IsPdrw2OsFXn6RfKtGrXbRl-Zo"
+    app = ApplicationBuilder().token(TOKEN).build()
 
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("wiki", wiki_command))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("wiki", wiki_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-        print("Бот запущен")
-        app.run_polling()
+    print("Бот запущен")
+    app.run_polling()
 
-    if __name__ == "__main__":
-        main()
+
+if __name__ == "__main__":
+    main()
