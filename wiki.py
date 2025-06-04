@@ -1,23 +1,27 @@
 import wikipedia
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from database import Database
 import os
 
+
 wikipedia.set_lang("ru")
+
+db = Database()
 
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
-    print("Ошибка: Не найден токен бота в переменной окружения BOT_TOKEN")
+    print("❌ Ошибка: Не найден токен бота в переменной окружения BOT_TOKEN")
     exit(1)
-
-db = Database()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     db.add_user(user.id, user.username, user.first_name, user.last_name)
     await update.message.reply_text(
-        f"Привет, {user.first_name}! Я бот-википедия. Просто напиши мне что-нибудь или используй /wiki <запрос>"
+        f"Привет, {user.first_name}! Я бот-википедия.\n"
+        f"Просто напиши мне что-нибудь, например: <i>Что такое квантовая физика</i>,\n"
+        f"или используй команду: /wiki <запрос>",
+        parse_mode="HTML"
     )
 
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
@@ -26,14 +30,29 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query
     request_id = db.log_search(user.id, query)
 
     try:
-        page = wikipedia.page(query)
-        db.save_article(request_id, page.title, page.content, page.url)
+        page = wikipedia.page(query, auto_suggest=False)
+        summary = wikipedia.summary(query, auto_suggest=False)
+        db.save_article(request_id, page.title, summary, page.url)
 
-        response = f"📚 {page.title}\n\n{page.content[:4000]}"
-        if len(page.content) > 4000:
-            response += f"\n\nЧитать полностью: {page.url}"
+        # Кнопка "Читать в Википедии"
+        keyboard = [[InlineKeyboardButton("🔗 Читать в Википедии", url=page.url)]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.message.reply_text(response)
+        # Попробуем взять первое изображение (если есть)
+        image_url = page.images[0] if page.images else None
+        if image_url and image_url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            await update.message.reply_photo(
+                photo=image_url,
+                caption=f"📚 <b>{page.title}</b>\n\n{summary}",
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_text(
+                text=f"📚 <b>{page.title}</b>\n\n{summary}",
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
 
     except wikipedia.exceptions.DisambiguationError as e:
         await update.message.reply_text(
@@ -62,7 +81,7 @@ def main():
     app.add_handler(CommandHandler("wiki", wiki_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    print("Бот запущен")
+    print("✅ Бот запущен")
     app.run_polling()
 
 if __name__ == "__main__":
