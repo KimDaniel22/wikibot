@@ -1,136 +1,122 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import sqlite3
 import wikipedia
-from database import get_connection
-import unicodedata
-import re
-import logging
+from datetime import datetime
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-logging.basicConfig(
-    filename='bot_log.txt',
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    encoding='utf-8'
-)
+# Настройки Wikipedia
 wikipedia.set_lang("ru")
 
-# Обработчик команды /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Привет! Напиши мне слово или фразу, или используй команду /wiki <тема>, и я найду информацию в Википедии."
+
+# Инициализация базы данных
+def init_db():
+    conn = sqlite3.connect('wiki_bot.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+    ''')
 
-# Логирование запросов в базу данных
-def log_request(user_id, username, query, response):
-    try:
-        conn = get_connection()
-        cur = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS search_requests (
+        request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        search_query TEXT NOT NULL,
+        search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+    )
+    ''')
 
-        safe_username = str(username)
-        safe_query = str(query)
-        if isinstance(response, bytes):
-            safe_response = response.decode('utf-8', errors='ignore')
-        else:
-            safe_response = str(response)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS articles (
+        article_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id INTEGER,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        url TEXT,
+        FOREIGN KEY (request_id) REFERENCES search_requests (request_id)
+    )
+    ''')
 
-        logging.info(f"User: {safe_username} | Query: {safe_query} | Response: {safe_response[:200]}")
+    conn.commit()
+    conn.close()
 
-        print("== Logging preview ==")
-        print("User:", repr(safe_username))
-        print("Query:", repr(safe_query))
-        print("Response:", repr(safe_response[:200]))  # первые 200 символов
 
-        print(f"[DEBUG] Username: {safe_username}")
-        print(f"[DEBUG] Query: {safe_query}")
-        print(f"[DEBUG] Response (first 200 chars): {safe_response[:200]}")
+# Функции для работы с БД
+def log_user(user_id, username=None, first_name=None, last_name=None):
+    conn = sqlite3.connect('wiki_bot.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT OR IGNORE INTO users (user_id, username, first_name, last_name)
+    VALUES (?, ?, ?, ?)
+    ''', (user_id, username, first_name, last_name))
+    conn.commit()
+    conn.close()
 
-        cur.execute("""
-            INSERT INTO requests (user_id, username, query, response)
-            VALUES (%s, %s, %s, %s)
-        """, (user_id, safe_username, safe_query, safe_response))
 
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
-        print("Ошибка при логировании в БД:", e)
+def log_search(user_id, query):
+    conn = sqlite3.connect('wiki_bot.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT INTO search_requests (user_id, search_query)
+    VALUES (?, ?)
+    ''', (user_id, query))
+    conn.commit()
+    request_id = cursor.lastrowid
+    conn.close()
+    return request_id
 
-def get_wiki_image(title):
-    import requests
 
-    URL = "https://ru.wikipedia.org/w/api.php"
-    PARAMS = {
-        "action": "query",
-        "format": "json",
-        "prop": "pageimages",
-        "titles": title,
-        "pithumbsize": 500  # размер изображения
-    }
+def save_article(request_id, title, content, url=None):
+    conn = sqlite3.connect('wiki_bot.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT INTO articles (request_id, title, content, url)
+    VALUES (?, ?, ?, ?)
+    ''', (request_id, title, content, url))
+    conn.commit()
+    conn.close()
 
-    try:
-        response = requests.get(URL, params=PARAMS)
-        data = response.json()
-        pages = data["query"]["pages"]
-        for page_id in pages:
-            page = pages[page_id]
-            if "thumbnail" in page:
-                return page["thumbnail"]["source"]
-    except Exception as e:
-        print("Ошибка при получении изображения:", e)
 
-    return None
+# Обработчики команд
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    log_user(user.id, user.username, user.first_name, user.last_name)
+    await update.message.reply_text(
+        f"Привет, {user.first_name}! Я бот-википедия. Просто напиши мне что-нибудь или используй /wiki <запрос>")
 
-def clean_query(text):
-    text = text.lower()
-    # Убираем вводные слова
-    text = re.sub(r"^(что|кто|где|когда|зачем|почему) такое ", "", text)
-    text = re.sub(r"[^\w\sёЁ\-]", "", text)  # убираем лишние символы, если надо
-    return text.strip()
 
-# Обработка запроса
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
+    user = update.effective_user
+    log_user(user.id, user.username, user.first_name, user.last_name)
+    request_id = log_search(user.id, query)
+
     try:
-        query = clean_query(query)
-        results = wikipedia.search(query)
+        page = wikipedia.page(query)
+        save_article(request_id, page.title, page.content, page.url)
 
-        if not results:
-            await update.message.reply_text("❌ Ничего не найдено.")
-            return
+        # Формируем ответ (первые 4000 символов, так как Telegram имеет ограничение)
+        response = f"📚 {page.title}\n\n{page.content[:4000]}..."
+        if len(page.content) > 4000:
+            response += f"\n\nЧитать полностью: {page.url}"
 
-        page_title = results[0]
-        summary = wikipedia.summary(page_title, sentences=3)
-        page = wikipedia.page(page_title)
-
-        if len(summary) > 1000:
-            summary = summary[:1000] + "..."
-
-        keyboard = [[InlineKeyboardButton("📖 Читать в Википедии", url=page.url)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # Логирование
-        log_request(
-            update.message.from_user.id,
-            update.message.from_user.username,
-            query,
-            summary
-        )
-
-        # Изображение
-        image_url = get_wiki_image(query)
-
-        if image_url:
-            await update.message.reply_photo(photo=image_url, caption=summary, reply_markup=reply_markup)
-        else:
-            await update.message.reply_text(summary, reply_markup=reply_markup)
+        await update.message.reply_text(response)
 
     except wikipedia.exceptions.DisambiguationError as e:
-        await update.message.reply_text(f"🔎 Слишком много значений. Уточни запрос. Например: {', '.join(e.options[:5])}")
+        await update.message.reply_text(
+            f"🔎 Слишком много значений. Уточни запрос. Например: {', '.join(e.options[:5])}")
     except wikipedia.exceptions.PageError:
         await update.message.reply_text("❌ Ничего не найдено. Попробуй другой запрос.")
     except Exception as e:
         await update.message.reply_text(f"⚠️ Произошла ошибка: {e}")
 
-# Команда /wiki
+
 async def wiki_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         query = ' '.join(context.args)
@@ -138,23 +124,26 @@ async def wiki_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❗️ Использование: /wiki <тема>")
 
-# Сообщения без команды
+
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
     await handle_query(update, context, query)
 
-# Запуск
-def main():
-    TOKEN = "7585359871:AAGG9F2z0IsPdrw2OsFXn6RfKtGrXbRl-Zo"
+    # Запуск бота
+    def main():
+        # Инициализация базы данных
+        init_db()
 
-    app = ApplicationBuilder().token(TOKEN).build()
+        TOKEN = "7585359871:AAGG9F2z0IsPdrw2OsFXn6RfKtGrXbRl-Zo"
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("wiki", wiki_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+        app = ApplicationBuilder().token(TOKEN).build()
 
-    print("Бот запущен.")
-    app.run_polling()
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CommandHandler("wiki", wiki_command))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-if __name__ == "__main__":
-    main()
+        print("Бот запущен и готов к работе!")
+        app.run_polling()
+
+    if name == "__main__":
+        main()
