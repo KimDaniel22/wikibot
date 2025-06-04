@@ -4,11 +4,10 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# Настройки Wikipedia
+
 wikipedia.set_lang("ru")
 
 
-# Инициализация базы данных
 def init_db():
     conn = sqlite3.connect('wiki_bot.db')
     cursor = conn.cursor()
@@ -101,7 +100,6 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query
         page = wikipedia.page(query)
         save_article(request_id, page.title, page.content, page.url)
 
-        # Формируем ответ (первые 4000 символов, так как Telegram имеет ограничение)
         response = f"📚 {page.title}\n\n{page.content[:4000]}..."
         if len(page.content) > 4000:
             response += f"\n\nЧитать полностью: {page.url}"
@@ -129,9 +127,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text
     await handle_query(update, context, query)
 
-    # Запуск бота
     def main():
-        # Инициализация базы данных
         init_db()
 
         TOKEN = "7585359871:AAGG9F2z0IsPdrw2OsFXn6RfKtGrXbRl-Zo"
@@ -142,8 +138,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         app.add_handler(CommandHandler("wiki", wiki_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-        print("Бот запущен и готов к работе!")
+        print("Бот запущен")
         app.run_polling()
 
-    if name == "__main__":
+    if __name__ == "__main__":
         main()
