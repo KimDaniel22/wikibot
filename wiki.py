@@ -2,8 +2,8 @@ import re
 import wikipedia
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from database import Database  # импортируем класс базы
-from config import TOKEN
+from database import Database
+import os
 
 wikipedia.set_lang("ru")
 
