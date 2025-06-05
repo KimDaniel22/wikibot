@@ -1,4 +1,6 @@
 python-telegram-bot
 psycopg2-binary
 wikipedia
-flask
+Flask
+requests
+gunicorn
