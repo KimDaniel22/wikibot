@@ -13,7 +13,7 @@ from config import TOKEN
 
 wikipedia.set_lang("ru")
 db = Database()
-db.init()
+# db.init()
 
 
 def extract_query(text: str) -> str:
