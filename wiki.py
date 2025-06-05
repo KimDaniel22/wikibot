@@ -8,7 +8,7 @@ import os
 wikipedia.set_lang("ru")
 
 db = Database()
-db.init()  # инициализация базы (создание таблиц)
+# db.init()
 
 def extract_query(text: str) -> str:
     text = text.lower().strip()
