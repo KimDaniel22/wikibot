@@ -39,7 +39,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     db.add_user(user.id, user.username, user.first_name, user.last_name)
     await update.message.reply_text(
-        f"Привет, {user.first_name}! Я бот-википедия. Просто напиши мне что-нибудь или используй /wiki <запрос>"
+        f"Привет, {user.first_name}! Я бот-википедия. Просто напиши мне какое-нибудь слово"
     )
 
 
