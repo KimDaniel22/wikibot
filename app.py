@@ -2,7 +2,7 @@ from flask import Flask, request
 from bot import application
 import asyncio
 
-app = Flask(__name__)
+application = Flask(__name__)
 
 @app.route('/')
 def home():

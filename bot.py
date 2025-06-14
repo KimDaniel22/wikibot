@@ -109,3 +109,4 @@ def get_bot_app():
     app.add_handler(CommandHandler("wiki", wiki_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     return app
+
