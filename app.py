@@ -24,7 +24,7 @@ def webhook():
     return '', 200
 
 
-@app.before_first_request
+@app.before_request
 def init_webhook():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
