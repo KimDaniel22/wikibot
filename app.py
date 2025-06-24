@@ -17,6 +17,6 @@ def webhook():
     return '', 200
 
 
-@app.before_first_request
+@app.before_request
 def init_webhook():
     asyncio.run(set_webhook())
