@@ -1,112 +1,27 @@
-import re
+from telegram import Update
+from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
+from database import init_db
 import wikipedia
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
-from database import Database
-from config import TOKEN, APP_URL  
 
 wikipedia.set_lang("ru")
-db = Database()
 
+def setup_handlers(dispatcher):
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
-def extract_query(text: str) -> str:
-    text = text.lower().strip()
-    patterns = [
-        r'^что такое\s+',
-        r'^что это\s+',
-        r'^объясни\s+что такое\s+',
-        r'^расскажи про\s+',
-        r'^поясни\s+что такое\s+',
-        r'^кто такой\s+',
-        r'^кто такая\s+',
-        r'^что значит\s+',
-        r'^\s*поясни\s+',
-        r'^\s*объясни\s+',
-    ]
-    for pattern in patterns:
-        text = re.sub(pattern, '', text)
-    return text.strip()
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update: Update, context):
     user = update.effective_user
-    db.add_user(user.id, user.username, user.first_name, user.last_name)
-    await update.message.reply_text(
-        f"Привет, {user.first_name}! Я бот-википедия. Просто напиши мне какое-нибудь слово"
-    )
+    update.message.reply_text(f"Привет, {user.first_name}! Я Wikipedia бот.")
 
-
-async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
-    query = extract_query(query)
-    user = update.effective_user
-    db.add_user(user.id, user.username, user.first_name, user.last_name)
-    request_id = db.log_search(user.id, query)
-
+def handle_message(update: Update, context):
+    search_query = update.message.text
     try:
-        page = wikipedia.page(query)
-        content = page.content.split('\n')[0]
-        url = page.url
-
-        img_url = None
-        for img in page.images:
-            if img.lower().endswith(('.jpg', '.jpeg', '.png')):
-                img_url = img
-                break
-
-        response = f"📚 <b>{page.title}</b>\n\n{content}\n\n"
-        keyboard = [[InlineKeyboardButton("Читать в Википедии", url=url)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        if img_url:
-            await update.message.reply_photo(
-                photo=img_url,
-                caption=response,
-                reply_markup=reply_markup,
-                parse_mode="HTML"
-            )
-        else:
-            await update.message.reply_text(
-                response,
-                reply_markup=reply_markup,
-                parse_mode="HTML"
-            )
-
-        db.save_article(request_id, page.title, content, url)
-
-    except wikipedia.exceptions.DisambiguationError as e:
-        await update.message.reply_text(
-            f"🔎 Слишком много значений. Уточни запрос. Например: {', '.join(e.options[:5])}"
-        )
+        summary = wikipedia.summary(search_query, sentences=2)
+        update.message.reply_text(summary)
     except wikipedia.exceptions.PageError:
-        await update.message.reply_text("❌ Ничего не найдено. Попробуй другой запрос.")
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ Произошла ошибка: {e}")
+        update.message.reply_text("Не найдено информации по вашему запросу.")
+    except wikipedia.exceptions.DisambiguationError as e:
+        update.message.reply_text(f"Уточните запрос: {e.options[:5]}")
 
-
-async def wiki_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args:
-        query = ' '.join(context.args)
-        await handle_query(update, context, query)
-    else:
-        await update.message.reply_text("❗️ Использование: /wiki <тема>")
-
-
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.message.text
-    await handle_query(update, context, query)
-
-
-application = ApplicationBuilder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("wiki", wiki_command))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-
-
-async def set_webhook():
-    await application.bot.set_webhook(f"{APP_URL}/webhook")
+# Инициализация БД при импорте
+init_db()
