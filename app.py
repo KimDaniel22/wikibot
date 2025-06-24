@@ -1,8 +1,9 @@
 from flask import Flask, request
-from bot import application
+from bot import application, set_webhook
 import asyncio
+from telegram import Update
 
-application = Flask(__name__)
+app = Flask(__name__)
 
 @app.route('/')
 def home():
@@ -11,5 +12,11 @@ def home():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = request.get_json()
-    asyncio.run(application.process_update(update))
+    telegram_update = Update.de_json(update, application.bot)
+    asyncio.run(application.process_update(telegram_update))
     return '', 200
+
+
+@app.before_first_request
+def init_webhook():
+    asyncio.run(set_webhook())

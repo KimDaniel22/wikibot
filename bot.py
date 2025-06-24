@@ -9,11 +9,10 @@ from telegram.ext import (
     filters,
 )
 from database import Database
-from config import TOKEN
+from config import TOKEN, APP_URL  
 
 wikipedia.set_lang("ru")
 db = Database()
-# db.init()
 
 
 def extract_query(text: str) -> str:
@@ -103,10 +102,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_query(update, context, query)
 
 
-def get_bot_app():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("wiki", wiki_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    return app
+application = ApplicationBuilder().token(TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("wiki", wiki_command))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
+
+async def set_webhook():
+    await application.bot.set_webhook(f"{APP_URL}/webhook")
