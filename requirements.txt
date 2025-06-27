@@ -4,3 +4,4 @@ wikipedia
 Flask
 requests
 gunicorn
+python-dotenv
