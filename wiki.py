@@ -118,12 +118,16 @@ async def on_startup():
     asyncio.create_task(application.start())
 
 
-@app.on_event("startup")
-async def startup_event():
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await on_startup()
+    await application.initialize()
+    await application.start()
 
-
-@app.on_event("shutdown")
-async def shutdown_event():
+    yield  # приложение работает здесь
     await application.stop()
     await application.shutdown()
+
+app = FastAPI(lifespan=lifespan)
