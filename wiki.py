@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters
 import wikipediaapi
+from contextlib import asynccontextmanager
 
 
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-APP_URL = os.getenv("https://wikibot.onrender.com") 
+APP_URL = os.getenv("RENDER_EXTERNAL_URL")
 KEEPALIVE_SECONDS = int(os.getenv("KEEPALIVE_SECONDS", "600"))
 
 if not TOKEN:
@@ -27,28 +28,21 @@ wiki = wikipediaapi.Wikipedia(
     user_agent="WikiBot/1.0 (https://wikibot.onrender.com; kimdaniel2204@gmail.com)"
 )
 
-
-app = FastAPI()
-
-
-
 async def start(update: Update, context):
     await update.message.reply_text(
         "Привет! Я бот Википедии \n"
         "Отправь слово или словосочетание — я пришлю краткое описание и картинку."
     )
 
-
 async def search(update: Update, context):
     query = update.message.text.strip()
     page = wiki.page(query)
 
     if not page.exists():
-        await update.message.reply_text("Не удалось найти статью. Попробуйте другое слово.")
+        await update.message.reply_text(" Не удалось найти статью. Попробуйте другое слово.")
         return
 
     summary = page.summary[0:800] + "..." if len(page.summary) > 800 else page.summary
-
     keyboard = InlineKeyboardMarkup.from_button(
         InlineKeyboardButton("Читать в Википедии ", url=page.fullurl)
     )
@@ -63,32 +57,17 @@ async def search(update: Update, context):
                     break
                 except Exception as e:
                     logger.warning(f"Не удалось отправить изображение: {e}")
-                    continue
 
     if not image_sent:
         await update.message.reply_text(summary, reply_markup=keyboard)
 
-
+# Регистрируем обработчик
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search))
 
 
-@app.get("/")
-async def index():
-    return {"status": "ok", "message": "Wikibot is running 🚀"}
-
-
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    data = await request.json()
-    update = Update.de_json(data, application.bot)
-    await application.update_queue.put(update)
-    return {"ok": True}
-
 async def keepalive():
-    """Периодически пингуем свой Render URL, чтобы уменьшить шанс засыпания."""
     if not APP_URL:
-        logger.warning("RENDER_EXTERNAL_URL не задан — keepalive выключен")
         return
     url = APP_URL.rstrip("/") + "/"
     async with httpx.AsyncClient() as client:
@@ -107,27 +86,30 @@ async def on_startup():
         await application.bot.delete_webhook()
         await application.bot.set_webhook(url=webhook_url)
         logger.info(f" Webhook установлен: {webhook_url}")
-    else:
-        logger.warning("RENDER_EXTERNAL_URL не задан — webhook не установлен")
-
-
     asyncio.create_task(keepalive())
+    await application.initialize()
+    await application.start()
 
-
-    asyncio.create_task(application.initialize())
-    asyncio.create_task(application.start())
-
-
-from contextlib import asynccontextmanager
+async def on_shutdown():
+    await application.stop()
+    await application.shutdown()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await on_startup()
-    await application.initialize()
-    await application.start()
+    yield
+    await on_shutdown()
 
-    yield  # приложение работает здесь
-    await application.stop()
-    await application.shutdown()
 
 app = FastAPI(lifespan=lifespan)
+
+@app.get("/")
+async def index():
+    return {"status": "ok", "message": "Wikibot is running 🚀"}
+
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, application.bot)
+    await application.update_queue.put(update)
+    return {"ok": True}
