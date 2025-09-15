@@ -17,7 +17,7 @@ APP_URL = os.getenv("RENDER_EXTERNAL_URL")  # например: https://your-app
 KEEPALIVE_SECONDS = int(os.getenv("KEEPALIVE_SECONDS", "600"))
 
 if not TOKEN:
-    raise RuntimeError("❌ TELEGRAM_TOKEN не задан")
+    raise RuntimeError("TELEGRAM_TOKEN не задан")
 
 application: Application = ApplicationBuilder().token(TOKEN).build()
 
