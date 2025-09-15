@@ -7,13 +7,13 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters
 import wikipediaapi
 
-# --- Логирование ---
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Конфигурация ---
+
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-APP_URL = os.getenv("RENDER_EXTERNAL_URL")  # например: https://your-app.onrender.com
+APP_URL = os.getenv("https://wikibot.onrender.com") 
 KEEPALIVE_SECONDS = int(os.getenv("KEEPALIVE_SECONDS", "600"))
 
 if not TOKEN:
@@ -31,7 +31,7 @@ app = FastAPI()
 
 async def start(update: Update, context):
     await update.message.reply_text(
-        "Привет! Я бот Википедии 🚀\n"
+        "Привет! Я бот Википедии \n"
         "Отправь слово или словосочетание — я пришлю краткое описание и картинку."
     )
 
@@ -41,13 +41,13 @@ async def search(update: Update, context):
     page = wiki.page(query)
 
     if not page.exists():
-        await update.message.reply_text("❌ Не удалось найти статью. Попробуйте другое слово.")
+        await update.message.reply_text("Не удалось найти статью. Попробуйте другое слово.")
         return
 
     summary = page.summary[0:800] + "..." if len(page.summary) > 800 else page.summary
 
     keyboard = InlineKeyboardMarkup.from_button(
-        InlineKeyboardButton("Читать в Википедии 🌍", url=page.fullurl)
+        InlineKeyboardButton("Читать в Википедии ", url=page.fullurl)
     )
 
     image_sent = False
@@ -85,14 +85,14 @@ async def telegram_webhook(request: Request):
 async def keepalive():
     """Периодически пингуем свой Render URL, чтобы уменьшить шанс засыпания."""
     if not APP_URL:
-        logger.warning("⚠️ RENDER_EXTERNAL_URL не задан — keepalive выключен")
+        logger.warning("RENDER_EXTERNAL_URL не задан — keepalive выключен")
         return
     url = APP_URL.rstrip("/") + "/"
     async with httpx.AsyncClient() as client:
         while True:
             try:
                 await client.get(url, timeout=10)
-                logger.info(f"✅ Keepalive ping {url}")
+                logger.info(f" Keepalive ping {url}")
             except Exception as e:
                 logger.warning(f"Keepalive error: {e}")
             await asyncio.sleep(KEEPALIVE_SECONDS)
@@ -105,7 +105,7 @@ async def on_startup():
         await application.bot.set_webhook(url=webhook_url)
         logger.info(f" Webhook установлен: {webhook_url}")
     else:
-        logger.warning("⚠️ RENDER_EXTERNAL_URL не задан — webhook не установлен")
+        logger.warning("RENDER_EXTERNAL_URL не задан — webhook не установлен")
 
 
     asyncio.create_task(keepalive())
