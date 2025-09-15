@@ -22,7 +22,10 @@ if not TOKEN:
 application: Application = ApplicationBuilder().token(TOKEN).build()
 
 
-wiki = wikipediaapi.Wikipedia("ru")
+wiki = wikipediaapi.Wikipedia(
+    language="ru",
+    user_agent="WikiBot/1.0 (https://wikibot.onrender.com; kimdaniel2204@gmail.com)"
+)
 
 
 app = FastAPI()
