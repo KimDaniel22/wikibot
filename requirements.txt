@@ -1,7 +1,5 @@
-python-telegram-bot
-psycopg2-binary
-wikipedia
-Flask
-requests
-gunicorn
-python-dotenv
+fastapi
+uvicorn[standard]
+httpx
+python-telegram-bot==20.6
+wikipedia-api

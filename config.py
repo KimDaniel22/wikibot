@@ -1,4 +1,5 @@
 import os
 
-TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")
+TOKEN = os.getenv('TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+
