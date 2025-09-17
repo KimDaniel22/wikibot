@@ -25,21 +25,56 @@ wiki = wikipediaapi.Wikipedia(
     user_agent="WikiBot/1.0 (https://wikibot.onrender.com; kimdaniel2204@gmail.com)"
 )
 
-async def get_page_image(title: str):
+def normalize_query(text: str) -> str:
+    text = text.lower().strip()
+    prefixes = [
+        "что такое",
+        "кто такой",
+        "кто такая",
+        "кто такие",
+        "расскажи про",
+        "расскажи о",
+        "определи",
+        "дай определение",
+        "что значит",
+    ]
+    for p in prefixes:
+        if text.startswith(p):
+            text = text[len(p):].strip()
+            break
+    return text.capitalize()
+
+async def get_first_page_image(title: str):
     url = "https://ru.wikipedia.org/w/api.php"
     params = {
         "action": "query",
         "titles": title,
-        "prop": "pageimages",
-        "format": "json",
-        "pithumbsize": 500
+        "prop": "images",
+        "format": "json"
     }
     async with httpx.AsyncClient() as client:
         r = await client.get(url, params=params)
         data = r.json()
         pages = data.get("query", {}).get("pages", {})
         for _, page in pages.items():
-            return page.get("thumbnail", {}).get("source")
+            images = page.get("images", [])
+            for img in images:
+                img_title = img.get("title")
+                # Получаем URL изображения
+                params_file = {
+                    "action": "query",
+                    "titles": img_title,
+                    "prop": "imageinfo",
+                    "iiprop": "url",
+                    "format": "json"
+                }
+                r_file = await client.get(url, params=params_file)
+                file_data = r_file.json()
+                file_pages = file_data.get("query", {}).get("pages", {})
+                for _, f in file_pages.items():
+                    image_url = f.get("imageinfo", [{}])[0].get("url")
+                    if image_url and image_url.lower().endswith((".jpg", ".jpeg", ".png")):
+                        return image_url
     return None
 
 async def start(update: Update, context):
@@ -49,20 +84,33 @@ async def start(update: Update, context):
     )
 
 async def search(update: Update, context):
-    query = update.message.text.strip()
-    page = wiki.page(query)
+    query = normalize_query(update.message.text)
 
+    page = wiki.page(query)
     if not page.exists():
-        await update.message.reply_text("Не удалось найти статью. Попробуйте другое слово.")
-        return
+        url = "https://ru.wikipedia.org/w/api.php"
+        params = {
+            "action": "opensearch",
+            "search": query,
+            "limit": 1,
+            "namespace": 0,
+            "format": "json"
+        }
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, params=params)
+            data = r.json()
+            if data[1]:
+                page = wiki.page(data[1][0])
+            else:
+                await update.message.reply_text("Не удалось найти статью. Попробуйте другой запрос.")
+                return
 
     summary = page.summary[0:800] + "..." if len(page.summary) > 800 else page.summary
     keyboard = InlineKeyboardMarkup.from_button(
         InlineKeyboardButton("Читать в Википедии", url=page.fullurl)
     )
 
-    image_url = await get_page_image(page.title)
-
+    image_url = await get_first_page_image(page.title)
     if image_url:
         await update.message.reply_photo(photo=image_url, caption=summary, reply_markup=keyboard)
     else:
