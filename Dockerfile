@@ -8,4 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "wiki.py"]
+CMD ["uvicorn", "wiki:app", "--host", "0.0.0.0", "--port", "8000"]
+
+EXPOSE 8000
