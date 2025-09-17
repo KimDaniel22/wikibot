@@ -8,10 +8,8 @@ from telegram.ext import Application, ApplicationBuilder, CommandHandler, Messag
 import wikipediaapi
 from contextlib import asynccontextmanager
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 APP_URL = os.getenv("RENDER_EXTERNAL_URL")
@@ -22,11 +20,27 @@ if not TOKEN:
 
 application: Application = ApplicationBuilder().token(TOKEN).build()
 
-
 wiki = wikipediaapi.Wikipedia(
     language="ru",
     user_agent="WikiBot/1.0 (https://wikibot.onrender.com; kimdaniel2204@gmail.com)"
 )
+
+async def get_page_image(title: str):
+    url = "https://ru.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "titles": title,
+        "prop": "pageimages",
+        "format": "json",
+        "pithumbsize": 500
+    }
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url, params=params)
+        data = r.json()
+        pages = data.get("query", {}).get("pages", {})
+        for _, page in pages.items():
+            return page.get("thumbnail", {}).get("source")
+    return None
 
 async def start(update: Update, context):
     await update.message.reply_text(
@@ -39,32 +53,23 @@ async def search(update: Update, context):
     page = wiki.page(query)
 
     if not page.exists():
-        await update.message.reply_text(" Не удалось найти статью. Попробуйте другое слово.")
+        await update.message.reply_text("Не удалось найти статью. Попробуйте другое слово.")
         return
 
     summary = page.summary[0:800] + "..." if len(page.summary) > 800 else page.summary
     keyboard = InlineKeyboardMarkup.from_button(
-        InlineKeyboardButton("Читать в Википедии ", url=page.fullurl)
+        InlineKeyboardButton("Читать в Википедии", url=page.fullurl)
     )
 
-    image_sent = False
-    if page.images:
-        for img_url in page.images.keys():
-            if img_url.lower().endswith((".jpg", ".jpeg", ".png")):
-                try:
-                    await update.message.reply_photo(photo=img_url, caption=summary, reply_markup=keyboard)
-                    image_sent = True
-                    break
-                except Exception as e:
-                    logger.warning(f"Не удалось отправить изображение: {e}")
+    image_url = await get_page_image(page.title)
 
-    if not image_sent:
+    if image_url:
+        await update.message.reply_photo(photo=image_url, caption=summary, reply_markup=keyboard)
+    else:
         await update.message.reply_text(summary, reply_markup=keyboard)
 
-# Регистрируем обработчик
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search))
-
 
 async def keepalive():
     if not APP_URL:
@@ -74,18 +79,17 @@ async def keepalive():
         while True:
             try:
                 await client.get(url, timeout=10)
-                logger.info(f" Keepalive ping {url}")
+                logger.info(f"Keepalive ping {url}")
             except Exception as e:
                 logger.warning(f"Keepalive error: {e}")
             await asyncio.sleep(KEEPALIVE_SECONDS)
-
 
 async def on_startup():
     if APP_URL:
         webhook_url = APP_URL.rstrip("/") + "/webhook"
         await application.bot.delete_webhook()
         await application.bot.set_webhook(url=webhook_url)
-        logger.info(f" Webhook установлен: {webhook_url}")
+        logger.info(f"Webhook установлен: {webhook_url}")
     asyncio.create_task(keepalive())
     await application.initialize()
     await application.start()
@@ -99,7 +103,6 @@ async def lifespan(app: FastAPI):
     await on_startup()
     yield
     await on_shutdown()
-
 
 app = FastAPI(lifespan=lifespan)
 
