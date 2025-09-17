@@ -105,7 +105,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def index():
-    return {"status": "ok", "message": "Wikibot is running 🚀"}
+    return {"status": "ok", "message": "Wikibot is running"}
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
