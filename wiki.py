@@ -46,6 +46,7 @@ def normalize_query(text: str) -> str:
 
 async def get_first_page_image(title: str):
     url = "https://ru.wikipedia.org/w/api.php"
+    headers = {"User-Agent": "WikiBot/1.0 (https://t.me/YourBotUsername)"}
     params = {
         "action": "query",
         "titles": title,
@@ -53,7 +54,7 @@ async def get_first_page_image(title: str):
         "format": "json"
     }
     async with httpx.AsyncClient() as client:
-        r = await client.get(url, params=params)
+        r = await client.get(url, params=params, headers=headers)
         data = r.json()
         pages = data.get("query", {}).get("pages", {})
         for _, page in pages.items():
@@ -68,7 +69,7 @@ async def get_first_page_image(title: str):
                     "iiprop": "url",
                     "format": "json"
                 }
-                r_file = await client.get(url, params=params_file)
+                r_file = await client.get(url, params=params_file, headers=headers)
                 file_data = r_file.json()
                 file_pages = file_data.get("query", {}).get("pages", {})
                 for _, f in file_pages.items():
@@ -89,6 +90,7 @@ async def search(update: Update, context):
     page = wiki.page(query)
     if not page.exists():
         url = "https://ru.wikipedia.org/w/api.php"
+        headers = {"User-Agent": "WikiBot/1.0 (https://t.me/YourBotUsername)"}
         params = {
             "action": "opensearch",
             "search": query,
@@ -97,7 +99,7 @@ async def search(update: Update, context):
             "format": "json"
         }
         async with httpx.AsyncClient() as client:
-            r = await client.get(url, params=params)
+            r = await client.get(url, params=params, headers=headers)
             data = r.json()
             if data[1]:
                 page = wiki.page(data[1][0])
